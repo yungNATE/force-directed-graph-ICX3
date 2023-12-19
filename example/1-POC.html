@@ -13,20 +13,13 @@
 
   <span class="count-down">0</span>
 
-  <button class="pause-btn" onclick="freezeTimer()">||</button>
-  <button class="reset-btn" onclick="location.reload();">Recommencer</button>
+  <button class="pause-btn" style="font-size: 1.4rem" onclick="freezeTimer()">⏸️</button>
 
   <style>
-    .reset-btn,
-    .count-down{
-      position: absolute;
-      top: 10px;
-      right: 10px;
-    }
-    .reset-btn{
-      display:none
-    }
     .count-down {
+      position: absolute;
+      top: 45px;
+      left: 20px;
       font-size: 30px;
       font-family: monospace;
       color: #9898ff;
@@ -244,10 +237,27 @@ function updateGraph() {
 
   linkElements.exit().remove()
 
+  var color = "rgb(150,150,150)"
+  var strokeSize = 2
+  svg.append("svg:defs").selectAll("marker")
+    .data(["end"])      // Different link/path types can be defined here
+    .enter().append("svg:marker")    // This section adds in the arrows
+    .attr("id", String)
+    .attr("viewBox", "0 -5 10 10")
+    .attr("refX", 15)
+    .attr("refY", 0.5)
+    .attr("markerWidth", strokeSize * 2.5)
+    .attr("markerHeight", strokeSize * 2.5)
+    .attr("orient", "auto")
+    .append("svg:path")
+    .attr('fill', color)
+    .attr("d", "M0,-5L10,0L0,5");
+
   var linkEnter = linkElements
     .enter().append('line')
-    .attr('stroke-width', 1)
-    .attr('stroke', 'rgba(50, 50, 50, 0.2)')
+    .attr('stroke-width', strokeSize)
+    .attr('stroke', color)
+    .attr("marker-end", "url(#end)");
 
   linkElements = linkEnter.merge(linkElements)
 
@@ -422,14 +432,21 @@ function displayStep(stepValue){
   stepDisplay.innerHTML = "Step " + stepValue + " / " + nbStep
   progressBar.style.width = stepPercent + "%"
 }
-addEventListener("keydown", function(event) {
-  // if (event.keyCode === 39) {
-  //   iterateThroughSteps(true)
-  // }
+addEventListener("keydown", mutateTimeWithSpaceBar);
+
+function mutateTimeWithSpaceBar(){
   if (event.keyCode === 32) {
     freezeTimer()
   }
-});
+}
+function freezeTimer(){
+  window.isPaused = !window.isPaused
+
+  window.isPaused ? 
+    document.querySelector(".pause-btn").innerHTML = "▶️" : 
+    document.querySelector(".pause-btn").innerHTML = "⏸️"
+}
+
 
 // each 5 secondes, we iterate through steps
 var time = 0
@@ -437,8 +454,10 @@ var timer = setInterval(() => {
   if(window.isPaused) return
   if(window.step == steps.length - 1) {
     clearInterval(timer)
-    document.querySelector(".count-down").remove()
-    document.querySelector("button").style.display = "inherit"
+    document.querySelector(".count-down").style.display = "none"
+    document.querySelector(".pause-btn").addEventListener("click", (event) => { location.reload() })
+    document.querySelector(".pause-btn").innerHTML = "🔄"
+    removeEventListener("keydown", mutateTimeWithSpaceBar);
 
   }
 
@@ -452,10 +471,6 @@ var timer = setInterval(() => {
   var countDown = document.querySelector(".count-down")
   countDown.innerHTML = time
 }, 1000);
-
-function freezeTimer(){
-  window.isPaused = !window.isPaused
-}
 
 // last but not least, we call updateSimulation
 // to trigger the initial render
