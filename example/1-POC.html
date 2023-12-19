@@ -52,19 +52,20 @@
     }
   </style>
   <svg width="960" height="600"></svg>
-  <script>
-    window.addEventListener('resize', function () {
-      width = window.innerWidth
-      height = window.innerHeight
-      svg.attr('width', width).attr('height', height)
-      simulation.force('center', d3.forceCenter(width / 2, height / 2))
-      simulation.restart()
-    })
-  </script>
 </body>
 
 <script src="https://d3js.org/d3.v4.min.js"></script>
 <script>
+// ************************* //
+// ICI TU TOUCHES SI TU VEUX //
+// ************************* //
+
+// 0. Duplique cette page, renomme la et modifie la pour faire ton propre graphe
+
+// 1. La durée entre chaque étapes
+window.stepDuration = 5 // in seconds
+
+// 2. Les noeuds et les liens de base (étape 0)
 var baseNodes = [
   // { id: "professor",    group: 0, label: "Professor", level: 1 },
   // { id: "olivier",      group: 0, label: "Olivier",   level: 2 },
@@ -75,7 +76,6 @@ var baseNodes = [
   { id: "nathan",       group: 0, label: "Nathan",    level: 2 },
   // { id: "tutu",         group: 0, label: "Tutu",      level: 2 },
 ]
-
 
 var baseLinks = [
 	// { target: "student", source: "professor" , strength: 0.7 },
@@ -88,10 +88,50 @@ var baseLinks = [
 
 ]
 
+// 3. Les étapes suivantes
+var steps = [
+    { // 0
+      nodes :[
+        { id: "toto", group: 0, label: "Toto", level: 2 }
+      ],
+      links :[
+        { target: "student", source: "toto" , strength: 1.0 },
+      ],
+    },
+    { // 1
+      nodes :[
+        { id: "tutu", group: 0, label: "Tutu", level: 2 }
+      ],
+      links :[
+        { target: "student", source: "tutu" , strength: 1.0 },
+      ],
+    },
+    { // 2
+      nodes :[
+        { id: "titi", group: 0, label: "Titi", level: 2 }
+      ],
+      links :[
+        { target: "student", source: "titi" , strength: 1.0 },
+      ],
+    },
+]
+
+
+// ******************** //
+// PAS TOUCHE APRÈS ICI //
+// ******************** //
+
+window.addEventListener('resize', function () {
+  width = window.innerWidth
+  height = window.innerHeight
+  svg.attr('width', width).attr('height', height)
+  simulation.force('center', d3.forceCenter(width / 2, height / 2))
+  simulation.restart()
+})
+
 var nodes = [...baseNodes]
 var links = [...baseLinks]
 window.step = Number(0)
-
 
 Number.prototype.clamp = function(min, max) {
   return Math.min(Math.max(this, min), max);
@@ -343,34 +383,6 @@ function removeLink(target, source) {
   }
 }
 
-var steps = [
-    { // 0
-      nodes :[
-        { id: "toto", group: 0, label: "Toto", level: 2 }
-      ],
-      links :[
-        { target: "student", source: "toto" , strength: 1.0 },
-      ],
-    },
-    { // 1
-      nodes :[
-        { id: "tutu", group: 0, label: "Tutu", level: 2 }
-      ],
-      links :[
-        { target: "student", source: "tutu" , strength: 1.0 },
-      ],
-    },
-    { // 2
-      nodes :[
-        { id: "titi", group: 0, label: "Titi", level: 2 }
-      ],
-      links :[
-        { target: "student", source: "titi" , strength: 1.0 },
-      ],
-    },
-
-]
-
 function moveStep(step, value){
   // check boundaries
   var min = 0
@@ -458,12 +470,11 @@ var timer = setInterval(() => {
     document.querySelector(".pause-btn").addEventListener("click", (event) => { location.reload() })
     document.querySelector(".pause-btn").innerHTML = "🔄"
     removeEventListener("keydown", mutateTimeWithSpaceBar);
-
   }
 
   time++ 
   
-  if(time >= 5) {
+  if(time >= window.stepDuration) {
     time = 0
     iterateThroughSteps(true)
   }
