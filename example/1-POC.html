@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Graph'</title>
+</head>
+
+<body style="overflow: hidden;">
+  <div class="progress-container">
+    <div class="step-display"></div>
+    <div class="progress-bar" id="progressBar"></div>
+  </div>
+
+  <span class="count-down">0</span>
+
+  <button class="pause-btn" onclick="freezeTimer()">||</button>
+  <button class="reset-btn" onclick="location.reload();">Recommencer</button>
+
+  <style>
+    .reset-btn,
+    .count-down{
+      position: absolute;
+      top: 10px;
+      right: 10px;
+    }
+    .reset-btn{
+      display:none
+    }
+    .count-down {
+      font-size: 30px;
+      font-family: monospace;
+      color: #9898ff;
+    }
+    .progress-container {
+      position: relative;
+      position: absolute;
+      width: 80%;
+      top: 3px;
+      left: 50%;
+      border-radius: 100px;
+      transform: translateX(-50%);
+      text-align: center;
+      font-family: monospace;
+      font-size: 20px;
+      transition: background-size 0.5s;
+      overflow: hidden;
+    }
+    
+    .progress-bar{
+      position: absolute;
+      left: 0;
+      top: 50%;
+      transform: translateY(-50%);
+      height: 100%;
+      z-index: -1;
+      background: #9898ff;
+      width: 50%;
+      transition: width 0.5s;
+    }
+  </style>
+  <svg width="960" height="600"></svg>
+  <script>
+    window.addEventListener('resize', function () {
+      width = window.innerWidth
+      height = window.innerHeight
+      svg.attr('width', width).attr('height', height)
+      simulation.force('center', d3.forceCenter(width / 2, height / 2))
+      simulation.restart()
+    })
+  </script>
+</body>
+
+<script src="https://d3js.org/d3.v4.min.js"></script>
+<script>
+var baseNodes = [
+  // { id: "professor",    group: 0, label: "Professor", level: 1 },
+  // { id: "olivier",      group: 0, label: "Olivier",   level: 2 },
+  { id: "student",      group: 0, label: "Students",  level: 1 },
+  // { id: "christian",    group: 0, label: "Christian", level: 2 },
+  // { id: "matteo",       group: 0, label: "Matteo",    level: 2 },
+  { id: "loris",        group: 0, label: "Loris",     level: 2 },
+  { id: "nathan",       group: 0, label: "Nathan",    level: 2 },
+  // { id: "tutu",         group: 0, label: "Tutu",      level: 2 },
+]
+
+
+var baseLinks = [
+	// { target: "student", source: "professor" , strength: 0.7 },
+	// { target: "olivier", source: "professor" , strength: 1.0 },
+	// { target: "student", source: "christian" , strength: 0.7 },
+	// { target: "student", source: "matteo" , strength: 0.7 },
+	{ target: "student", source: "loris" , strength: 0.7 },
+	{ target: "student", source: "nathan" , strength: 0.7 },
+	// { target: "matteo", source: "loris" , strength: 1.0 },
+
+]
+
+var nodes = [...baseNodes]
+var links = [...baseLinks]
+window.step = Number(0)
+
+
+Number.prototype.clamp = function(min, max) {
+  return Math.min(Math.max(this, min), max);
+};
+
+function isOverBoundaries(number, min, max){
+  return number < min || number > max
+}
+
+function isNeighborLink(node, link) {
+  return link.target.id === node.id || link.source.id === node.id
+}
+
+function getNodeColor(node, neighbors) {
+  if (Array.isArray(neighbors) && neighbors.indexOf(node.id) > -1) {
+    return node.level === 1 ? 'blue' : 'green'
+  }
+
+  return node.level === 1 ? 'red' : 'gray'
+}
+
+
+function getLinkColor(node, link) {
+  return isNeighborLink(node, link) ? 'green' : '#E5E5E5'
+}
+
+function getTextColor(node, neighbors) {
+  return Array.isArray(neighbors) && neighbors.indexOf(node.id) > -1 ? 'green' : 'black'
+}
+
+var width = window.innerWidth
+var height = window.innerHeight
+
+var svg = d3.select('svg')
+svg.attr('width', width).attr('height', height)
+
+var linkElements,
+  nodeElements,
+  textElements
+
+// we use svg groups to logically group the elements together
+var linkGroup = svg.append('g').attr('class', 'links')
+var nodeGroup = svg.append('g').attr('class', 'nodes')
+var textGroup = svg.append('g').attr('class', 'texts')
+
+// we use this reference to select/deselect
+// after clicking the same element twice
+var selectedId
+
+// simulation setup with all forces
+var linkForce = d3
+  .forceLink()
+  .id(function (link) { return link.id })
+  .strength(function (link) { return link.strength })
+
+var simulation = d3
+  .forceSimulation()
+  .force('link', linkForce)
+  .force('charge', d3.forceManyBody().strength(-120))
+  .force('center', d3.forceCenter(width / 2, height / 2))
+
+var dragDrop = d3.drag().on('start', function (node) {
+  node.fx = node.x
+  node.fy = node.y
+}).on('drag', function (node) {
+  simulation.alphaTarget(0.7).restart()
+  node.fx = d3.event.x
+  node.fy = d3.event.y
+}).on('end', function (node) {
+  if (!d3.event.active) {
+    simulation.alphaTarget(0)
+  }
+  node.fx = null
+  node.fy = null
+})
+
+// select node is called on every click
+// we either update the data according to the selection
+// or reset the data if the same node is clicked twice
+
+// TODO : regarder dans le github où est la fonction selectNode est appelée
+function selectNode(selectedNode) {
+  if (selectedId === selectedNode.id) {
+    selectedId = undefined
+    resetData()
+  } else {
+    selectedId = selectedNode.id
+    updateData(selectedNode)
+  }
+  updateSimulation()
+
+
+  // we modify the styles to highlight selected nodes
+  nodeElements.attr('fill', function (node) { return getNodeColor(node, neighbors) })
+  textElements.attr('fill', function (node) { return getTextColor(node, neighbors) })
+  linkElements.attr('stroke', function (link) { return getLinkColor(selectedNode, link) })
+}
+
+// this helper simple adds all nodes and links
+// that are missing, to recreate the initial state
+function resetData() {
+  var nodeIds = nodes.map(function (node) { return node.id })
+
+  baseNodes.forEach(function (node) {
+    if (nodeIds.indexOf(node.id) === -1) {
+      nodes.push(node)
+    }
+  })
+
+  links = baseLinks
+}
+
+// diffing and mutating the data
+function updateData(selectedNode) {
+  // on chope les voisins du noeud sélectionné
+  var neighbors = getNeighbors(selectedNode)
+
+  // on filtre les noeuds qui ne sont pas des voisins
+  var newNodes = baseNodes.filter(function (node) {
+    return neighbors.indexOf(node.id) > -1
+  })
+
+  // 
+  var diff = {
+    removed: nodes.filter(function (node) { return newNodes.indexOf(node) === -1 }),
+    added: newNodes.filter(function (node) { return nodes.indexOf(node) === -1 })
+  }
+
+  diff.removed.forEach(function (node) { nodes.splice(nodes.indexOf(node), 1) })
+  diff.added.forEach(function (node) { nodes.push(node) })
+
+  links = baseLinks.filter(function (link) {
+    return link.target.id === selectedNode.id || link.source.id === selectedNode.id
+  })
+}
+
+function updateGraph() {
+  // links
+  linkElements = linkGroup.selectAll('line')
+    .data(links, function (link) {
+      return link.target.id + link.source.id
+    })
+
+  linkElements.exit().remove()
+
+  var linkEnter = linkElements
+    .enter().append('line')
+    .attr('stroke-width', 1)
+    .attr('stroke', 'rgba(50, 50, 50, 0.2)')
+
+  linkElements = linkEnter.merge(linkElements)
+
+  // nodes
+  nodeElements = nodeGroup.selectAll('circle')
+    .data(nodes, function (node) { return node.id })
+
+  nodeElements.exit().remove()
+
+  var nodeEnter = nodeElements
+    .enter()
+    .append('circle')
+    .attr('r', 10)
+    .attr('id', function (node) { return node.id })
+    .attr('fill', function (node) { return node.level === 1 ? 'red' : 'gray' })
+    .call(dragDrop)
+
+    
+    nodeElements = nodeEnter.merge(nodeElements)
+
+  // texts
+  textElements = textGroup.selectAll('text')
+    .data(nodes, function (node) { return node.id })
+
+  textElements.exit().remove()
+
+  var textEnter = textElements
+    .enter()
+    .append('text')
+    .text(function (node) { return node.label })
+    .attr('font-size', 15)
+    .attr('style', "user-select: none; pointer-events: none;")
+    .attr('dx', 15)
+    .attr('dy', 4)
+
+  textElements = textEnter.merge(textElements)
+}
+
+function updateSimulation() {
+  updateGraph()
+
+  simulation.nodes(nodes).on('tick', () => {
+    nodeElements
+      .attr('cx', function (node) { return node.x })
+      .attr('cy', function (node) { return node.y })
+    textElements
+      .attr('x', function (node) { return node.x })
+      .attr('y', function (node) { return node.y })
+    linkElements
+      .attr('x1', function (link) { return link.source.x })
+      .attr('y1', function (link) { return link.source.y })
+      .attr('x2', function (link) { return link.target.x })
+      .attr('y2', function (link) { return link.target.y })
+  })
+
+  simulation.force('link').links(links)
+  simulation.alphaTarget(0.7).restart()
+}
+
+function addNode(id, label, level) {
+  baseNodes.push({ id: id, group: 0, label: label, level: level })
+}
+
+function addLink(target, source, strength) {
+  baseLinks.push({ target: target, source: source, strength: strength })
+}
+
+function removeNode(id) {
+  for(var i = 0; i < nodes.length; i++){
+    if(nodes[i].id == id){
+      nodes.splice(i, 1)
+      break
+    }
+  }
+}
+
+function removeLink(target, source) {
+  for(var i = 0; i < links.length; i++){
+    if(links[i].target.id == target && links[i].source.id == source){
+      links.splice(i, 1)
+      break
+    }
+  }
+}
+
+var steps = [
+    { // 0
+      nodes :[
+        { id: "toto", group: 0, label: "Toto", level: 2 }
+      ],
+      links :[
+        { target: "student", source: "toto" , strength: 1.0 },
+      ],
+    },
+    { // 1
+      nodes :[
+        { id: "tutu", group: 0, label: "Tutu", level: 2 }
+      ],
+      links :[
+        { target: "student", source: "tutu" , strength: 1.0 },
+      ],
+    },
+    { // 2
+      nodes :[
+        { id: "titi", group: 0, label: "Titi", level: 2 }
+      ],
+      links :[
+        { target: "student", source: "titi" , strength: 1.0 },
+      ],
+    },
+
+]
+
+function moveStep(step, value){
+  // check boundaries
+  var min = 0
+  var max = steps.length - 1
+  
+  currentStep = step
+  step += value
+  step = step.clamp(min, max)
+  
+  if(currentStep == step) { // hasn't moved
+    console.log("didnt move");
+    return false 
+  }
+
+  return step
+}
+
+function iterateThroughSteps(goToNext = true){
+  goToPrevious = !goToNext
+  
+  movementResult = moveStep(window.step, goToNext ? 1 : -1)
+  if(movementResult === false) return
+  else window.step = movementResult
+
+  if(goToNext){
+    steps[window.step-1].nodes.forEach((node) => {
+      addNode(node.id, node.label, node.level)
+    })
+    steps[window.step-1].links.forEach((link) => {
+      addLink(link.target, link.source, link.strength)
+    })
+  }
+
+  if(goToPrevious){
+    steps[window.step].nodes.forEach((node) => {
+      removeNode(node.id)
+    })
+    steps[window.step].links.forEach((link) => {
+      removeLink(link.target, link.source)
+    })
+  }
+
+
+
+  displayStep(window.step)
+
+  // updateData()
+  resetData()
+  updateSimulation()
+}
+
+function displayStep(stepValue){
+  var stepValue = Number(stepValue) + 1
+  var nbStep = steps.length
+  var stepPercent = (stepValue / nbStep) * 100
+  var stepDisplay = document.querySelector(".step-display")
+  var progressBar = document.querySelector(".progress-bar")
+
+  stepDisplay.innerHTML = "Step " + stepValue + " / " + nbStep
+  progressBar.style.width = stepPercent + "%"
+}
+addEventListener("keydown", function(event) {
+  // if (event.keyCode === 39) {
+  //   iterateThroughSteps(true)
+  // }
+  if (event.keyCode === 32) {
+    freezeTimer()
+  }
+});
+
+// each 5 secondes, we iterate through steps
+var time = 0
+var timer = setInterval(() => {
+  if(window.isPaused) return
+  if(window.step == steps.length - 1) {
+    clearInterval(timer)
+    document.querySelector(".count-down").remove()
+    document.querySelector("button").style.display = "inherit"
+
+  }
+
+  time++ 
+  
+  if(time >= 5) {
+    time = 0
+    iterateThroughSteps(true)
+  }
+
+  var countDown = document.querySelector(".count-down")
+  countDown.innerHTML = time
+}, 1000);
+
+function freezeTimer(){
+  window.isPaused = !window.isPaused
+}
+
+// last but not least, we call updateSimulation
+// to trigger the initial render
+updateSimulation()
+displayStep(window.step)
+
+</script>
+</html>
